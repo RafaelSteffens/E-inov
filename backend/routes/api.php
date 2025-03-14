@@ -21,7 +21,7 @@ Route::get('/csrf-token', function () {
 
 Route::get('/users', [UserController::class, 'index']);
 Route::get('/user/{id}', [UserController::class, 'show'])->where('id', '[0-9]+');
-Route::post('/user', [UserController::class, 'store']);
+Route::post('/user', [UserController::class, 'salveUser']);
 
 
 Route::post('/user/edit/{id}', [UserController::class, 'update'])->where('id', '[0-9]+');
