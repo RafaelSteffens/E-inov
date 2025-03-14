@@ -10,7 +10,7 @@
         bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 
         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
           Novo usuário
-        </button>
+        </button> 
       </div>
     </div>
 
@@ -36,7 +36,12 @@
                   <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ user.name }}</td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ user.company }}</td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ user.email }}</td>
-                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ user.phone }}</td>
+                  <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <div v-for="phone in user.phones" :key="phone.id">
+                      {{ phone.number }}
+                    </div>
+                    <span v-if="user.phones.length === 0">Nenhum telefone cadastrado</span>
+                  </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ user.created_at }}</td>
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                     <a href="#" @click.prevent="editUser(user.id)" class="text-indigo-600 hover:text-indigo-900"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-fill" viewBox="0 0 16 16">
@@ -61,7 +66,6 @@
     <div class="bg-white p-6 rounded-lg shadow-lg w-96">
       <h2 class="text-lg font-semibold mb-4">{{ newUser.id ? 'Editar' : 'Novo' }} Usuário</h2>
       <form @submit.prevent="submitForm">
-        <!-- Campos existentes mantidos -->
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700">Nome</label>
           <input v-model="newUser.name" type="text" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
@@ -74,8 +78,6 @@
           <label class="block text-sm font-medium text-gray-700">E-mail</label>
           <input v-model="newUser.email" type="email" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
         </div>
-
-        <!-- Campo de telefones modificado -->
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700">Telefones</label>
           <div class="space-y-2">
@@ -112,7 +114,13 @@
 
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700">Senha</label>
-          <input v-model="newUser.password" type="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+          <input 
+            v-model="newUser.password" 
+            type="password" 
+            :required="!newUser.id" 
+            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+          >
+          <p v-if="newUser.id" class="text-sm text-gray-500 mt-1">Deixe em branco para manter a senha atual.</p>
         </div>
         
         <div class="flex justify-end">
@@ -157,6 +165,7 @@ const openModal = () => {
 
 const closeModal = () => {
   isModalOpen.value = false;
+  newUser.value = {}
 };
 
 const addPhone = () => {
@@ -167,13 +176,17 @@ const removePhone = (index) => {
   newUser.value.phones.splice(index, 1);
 };
 
-
 const submitForm = async () => {
   try {
     const userData = {
       ...newUser.value,
-      phone: newUser.value.phones.join(", ") 
+      phone: newUser.value.phones.join(", "),
     };
+
+    // Se estiver editando e a senha estiver vazia, remova-a do payload
+    if (userData.id && !userData.password) {
+      delete userData.password;
+    }
 
     const url = userData.id
       ? `http://127.0.0.1:8000/api/user/edit/${userData.id}`
@@ -184,7 +197,7 @@ const submitForm = async () => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(newUser.value),
+      body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
@@ -193,10 +206,9 @@ const submitForm = async () => {
       return;
     }
 
-    console.log("Usuário salvo com sucesso!");
+    getUsers();
+    alert("Usuário salvo com sucesso!");
     closeModal();
-    getUsers(); 
-
   } catch (error) {
     console.error("Erro na requisição:", error);
   }
@@ -206,14 +218,16 @@ const editUser = async (userId) => {
   try {
     const response = await fetch(`http://127.0.0.1:8000/api/user/${userId}`);
     const userData = await response.json();
-
     newUser.value = {
-      ...userData,
-      phones: userData.phone.split(/,\s*/) // Divide a string por vírgulas
+      id: userData.id,
+      name: userData.name,
+      company: userData.company,
+      email: userData.email,
+      phones: userData.phones.map(phone => phone.number), 
+      password: "",
     };
-    
-    newUser.value = userData; // Preenche o formulário com os dados do usuário
-    isModalOpen.value = true; // Abre o modal
+
+    isModalOpen.value = true; 
   } catch (error) {
     console.error("Erro ao buscar usuário:", error);
   }
@@ -228,19 +242,14 @@ const trashUser = async (userId) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-
       },
       credentials: 'include' 
     });
 
     const data = await response.json(); 
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Falha na exclusão');
-    }
     const userElement = document.getElementById(`user-${userId}`);
     if (userElement) userElement.remove();
-
+    getUsers(); 
     alert(data.message); 
   } catch (error) {
     console.error("Erro:", error);
